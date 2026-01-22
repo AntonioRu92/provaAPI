@@ -1,3 +1,51 @@
+# Netlify Klaviyo Webhook
+
+Files created:
+- `netlify/functions/klaviyo-webhook.js` - Netlify Function that verifies HMAC-SHA256 (base64) signature and logs payload.
+- `netlify.toml` - Netlify config pointing to functions folder.
+- `package.json` - contains `netlify dev` script for local dev.
+- `scripts/generate-signature.sh` - helper to generate signature for testing.
+
+Quick steps
+
+1. Commit and push this repo to GitHub:
+
+```bash
+git add .
+git commit -m "Add Netlify function and test scripts for Klaviyo webhook"
+git push origin main
+```
+
+2. In Netlify UI (Site → Site settings → Build & deploy → Environment), add:
+
+- `WC_WEBHOOK_SECRET` = <la_tua_chiave_segreta>
+
+3. Connect repository on Netlify (New site → GitHub → choose repo) and deploy.
+
+4. After deploy, the webhook endpoint will be:
+
+```
+https://<tuo-sito>.netlify.app/.netlify/functions/klaviyo-webhook
+```
+
+5. Test the webhook (locally or after deploy):
+
+Generate signature:
+
+```bash
+payload='{"id":123,"status":"created"}'
+SECRET='la_tua_chiave_segreta'
+sig=$(echo -n "$payload" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+
+curl -v \
+  -H "Content-Type: application/json" \
+  -H "X-WC-Webhook-Signature: $sig" \
+  -d "$payload" \
+  https://<tuo-sito>.netlify.app/.netlify/functions/klaviyo-webhook
+```
+
+Notes
+- Netlify Functions run on Node.js; if your main app is Laravel/PHP, keep that separate or forward payloads from this function to your PHP server.
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
