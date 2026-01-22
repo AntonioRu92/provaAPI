@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Webhook Test</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:24px}
+    textarea,input{width:100%;box-sizing:border-box;margin-top:8px}
+    label{display:block;margin-top:12px;font-weight:600}
+    button{margin-top:12px;padding:8px 12px}
+    pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>Test Webhook</h1>
+
+  <label>Endpoint URL</label>
+  <input id="endpoint" value="https://apitestsinkro.netlify.app/.netlify/functions/klaviyo-webhook" />
+
+  <label>Secret (WC_WEBHOOK_SECRET)</label>
+  <input id="secret" placeholder="Inserisci la secret qui" />
+
+  <label>Payload (JSON)</label>
+  <textarea id="payload" rows="8">{
+  "id": 123,
+  "status": "created",
+  "source": "test-frontend"
+}</textarea>
+
+  <button id="send">Invia webhook</button>
+  <button id="curl" style="margin-left:8px">Mostra cURL</button>
+
+  <h2>Risposta</h2>
+  <pre id="response">—</pre>
+
+  <h2>Debug</h2>
+  <pre id="debug">—</pre>
+
+  <script>
+    async function hmacBase64(key, message) {
+      const enc = new TextEncoder();
+      const keyData = enc.encode(key);
+      const msgData = enc.encode(message);
+      const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+      const sig = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+      // base64
+      const bytes = new Uint8Array(sig);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    }
+
+    function showDebug(msg){ document.getElementById('debug').textContent = msg; }
+
+    document.getElementById('send').addEventListener('click', async () => {
+      const endpoint = document.getElementById('endpoint').value.trim();
+      const secret = document.getElementById('secret').value.trim();
+      const payloadText = document.getElementById('payload').value.trim();
+      if(!endpoint || !secret){ alert('Endpoint e secret richiesti'); return; }
+
+      let parsed = payloadText;
+      try{ JSON.parse(payloadText); } catch(e){ alert('Payload non è JSON valido'); return; }
+
+      showDebug('Calcolo signature...');
+      const sig = await hmacBase64(secret, payloadText);
+      showDebug('Signature (base64): ' + sig + '\n\nInvio a: ' + endpoint + '\n\nPayload:\n' + payloadText);
+
+      try{
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WC-Webhook-Signature': sig
+          },
+          body: payloadText
+        });
+        const text = await res.text();
+        document.getElementById('response').textContent = res.status + ' ' + res.statusText + '\n' + text;
+      } catch(err){
+        document.getElementById('response').textContent = 'Network error: ' + err;
+      }
+    });
+
+    document.getElementById('curl').addEventListener('click', async () => {
+      const endpoint = document.getElementById('endpoint').value.trim();
+      const secret = document.getElementById('secret').value.trim();
+      const payloadText = document.getElementById('payload').value.trim();
+      if(!endpoint || !secret){ alert('Endpoint e secret richiesti'); return; }
+      const sig = await hmacBase64(secret, payloadText);
+      const curl = `curl -v -H "Content-Type: application/json" -H "X-WC-Webhook-Signature: ${sig}" -d '${payloadText.replace(/'/g, "'\\''")}' ${endpoint}`;
+      showDebug(curl);
+    });
+  </script>
+</body>
+</html>
