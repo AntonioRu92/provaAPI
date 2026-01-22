@@ -27,7 +27,26 @@ exports.handler = async (event) => {
   try { payload = JSON.parse(body || '{}'); } catch (e) { payload = { raw: body }; }
   console.log('klaviyo-webhook payload:', payload);
 
-  // TODO: forward to Klaviyo or process accordingly
+  // Optional: forward the raw webhook body to an internal endpoint
+  const forwardUrl = process.env.FORWARD_URL;
+  const forwardSecret = process.env.FORWARD_SECRET;
+  if (forwardUrl) {
+    try {
+      const res = await fetch(forwardUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Secret': forwardSecret || ''
+        },
+        body: body
+      });
+      const text = await res.text();
+      console.log('klaviyo-webhook forward:', { forwardUrl, status: res.status, responsePreview: text && text.slice ? text.slice(0, 300) : text });
+    } catch (e) {
+      console.error('klaviyo-webhook forward error:', e && e.message ? e.message : e);
+    }
+  }
+
   return {
     statusCode: 200,
     body: JSON.stringify({ ok: true })
